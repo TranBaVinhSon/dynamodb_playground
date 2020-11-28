@@ -86,8 +86,74 @@ async function upsert(users: User[]): Promise<void> {
   }
 }
 
+async function findByStatus(
+  workspaceHash: string,
+  status: string
+): Promise<User[]> {
+  const result: User[] = [];
+  // Doesn't work: UnhandledPromiseRejectionWarning: ValidationException: The provided key element does not match the schema:
+  // const data = await UserModel.get({
+  //   workspaceHash: workspaceHash,
+  //   status: status,
+  // });
+
+  const users = await UserModel.query({
+    workspaceHash: {
+      eq: workspaceHash,
+    },
+    status: {
+      eq: status,
+    },
+  }).exec();
+  console.log("users", users);
+
+  users.map((user) => {
+    const u: User = {
+      workspaceHash: user.workspaceHash,
+      role: user.role,
+      email: user.email,
+      status: user.status,
+    };
+    result.push(u);
+  });
+  return result;
+}
+
+async function findByRole(
+  workspaceHash: string,
+  role: string
+): Promise<User[]> {
+  const result: User[] = [];
+
+  const users = await UserModel.query({
+    workspaceHash: {
+      eq: workspaceHash,
+    },
+    role: {
+      eq: role,
+    },
+  }).exec();
+  console.log("users", users);
+
+  users.map((user) => {
+    const u: User = {
+      workspaceHash: user.workspaceHash,
+      role: user.role,
+      email: user.email,
+      status: user.status,
+    };
+    result.push(u);
+  });
+  return result;
+}
+
 async function main(): Promise<void> {
-  await seedData();
+  // await seedData();
+  // await findByStatus("032129f3-3f82-4fc7-b0b8-d95a67b4e6aa", "deposit");
+  // const users = await findByRole(
+  //   "1d57631d-4930-4d89-ae62-cf3a4be71139",
+  //   "Awesome"
+  // );
 }
 
 main();
