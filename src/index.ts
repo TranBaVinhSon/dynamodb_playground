@@ -16,6 +16,7 @@ interface User {
   email: string;
   status: string;
   role: string;
+  orgId: number;
 }
 
 dynamoose.aws.sdk.config.update({
@@ -41,6 +42,13 @@ const schema = new dynamoose.Schema(
         global: false,
       },
     },
+    orgId: {
+      type: Number,
+      index: {
+        name: "orgId-role-index",
+        global: true,
+      },
+    },
   },
   {
     saveUnknown: true,
@@ -54,13 +62,14 @@ const UserModel = dynamoose.model(dynamoDBTable, schema, {
 
 async function seedData(): Promise<void> {
   const users: User[] = [];
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 20; i++) {
     const workspaceHash = uuidv4();
     const user: User = {
       workspaceHash: workspaceHash,
       email: faker.internet.email(),
       status: faker.random.word(),
       role: faker.random.word(),
+      orgId: i % 5,
     };
     users.push(user);
   }
@@ -86,6 +95,7 @@ async function upsert(users: User[]): Promise<void> {
   }
 }
 
+// Query by LSI
 async function findByStatus(
   workspaceHash: string,
   status: string
@@ -113,6 +123,7 @@ async function findByStatus(
       role: user.role,
       email: user.email,
       status: user.status,
+      orgId: user.orgId,
     };
     result.push(u);
   });
@@ -141,6 +152,75 @@ async function findByRole(
       role: user.role,
       email: user.email,
       status: user.status,
+      orgId: user.orgId,
+    };
+    result.push(u);
+  });
+  return result;
+}
+
+// Query by GSI
+async function findByOrgID(orgId: number): Promise<User[]> {
+  const result: User[] = [];
+
+  const users = await UserModel.query({
+    orgId: {
+      eq: orgId,
+    },
+  }).exec();
+  console.log("users", users);
+
+  users.map((user) => {
+    const u: User = {
+      workspaceHash: user.workspaceHash,
+      role: user.role,
+      email: user.email,
+      status: user.status,
+      orgId: user.orgId,
+    };
+    result.push(u);
+  });
+  return result;
+}
+
+// Query by Global secondary index + Sort key
+async function findByOrgIdAndRole(
+  orgId: number,
+  role: string
+): Promise<User[]> {
+  const result: User[] = [];
+
+  // Doesn't work: UnhandledPromiseRejectionWarning: ValidationException: Filter Expression can only contain non-primary key attributes: Primary key attribute: role
+  // const users = await UserModel.query({
+  //   orgId: {
+  //     eq: orgId,
+  //   },
+  //   role: {
+  //     eq: role,
+  //   },
+  // }).exec();
+
+  // const users = await UserModel.query("orgId")
+  //   .eq(orgId)
+  //   .and()
+  //   .where("role")
+  //   .eq(role)
+  //   .exec();
+  // console.log("users", users);
+
+  const users = await UserModel.query("orgId")
+    .eq(orgId)
+    .where("role") // Using FilterExpression instead of KeyConditionExpression: https://stackoverflow.com/a/41646393
+    .eq(role)
+    .exec();
+
+  users.map((user) => {
+    const u: User = {
+      workspaceHash: user.workspaceHash,
+      role: user.role,
+      email: user.email,
+      status: user.status,
+      orgId: user.orgId,
     };
     result.push(u);
   });
@@ -148,12 +228,18 @@ async function findByRole(
 }
 
 async function main(): Promise<void> {
-  // await seedData();
+  await seedData();
   // await findByStatus("032129f3-3f82-4fc7-b0b8-d95a67b4e6aa", "deposit");
   // const users = await findByRole(
   //   "1d57631d-4930-4d89-ae62-cf3a4be71139",
   //   "Awesome"
   // );
+  // const users = await findByOrgID(2);
+  const users = await findByOrgIdAndRole(2, "Analyst");
+  console.log(users);
 }
 
 main();
+
+// KeyConditionExpression: Using partition key + sort key (better performance + sot)
+// FilterExpression: Not really good for performance
