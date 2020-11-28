@@ -1,9 +1,18 @@
 {
   "name": "dynamodb_playground",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "build/index.js",
   "license": "MIT",
   "devDependencies": {
     "typescript": "^4.1.2"
+  },
+  "dependencies": {
+    "@types/faker": "^5.1.4",
+    "@types/node": "^14.14.10",
+    "@types/uuid": "^8.3.0",
+    "dotenv": "^8.2.0",
+    "dynamoose": "^2.4.1",
+    "faker": "^5.1.0",
+    "uuid": "^8.3.1"
   }
 }
