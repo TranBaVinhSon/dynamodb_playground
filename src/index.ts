@@ -30,6 +30,7 @@ const schema = new dynamoose.Schema(
     workspaceHash: {
       type: String,
       hashKey: true,
+      required: true,
     },
     email: {
       type: String,
@@ -42,12 +43,16 @@ const schema = new dynamoose.Schema(
         global: false,
       },
     },
+    // Ref: https://github.com/dynamoose/dynamoose/blob/698de0ac04e2835c43573d31ea8f228887f03123/test/Query.js#L628-L679
     orgId: {
       type: Number,
       index: {
         name: "orgId-role-index",
         global: true,
+        rangeKey: "role",
+        throughput: 5,
       },
+      required: true,
     },
   },
   {
@@ -163,11 +168,13 @@ async function findByRole(
 async function findByOrgID(orgId: number): Promise<User[]> {
   const result: User[] = [];
 
-  const users = await UserModel.query({
-    orgId: {
-      eq: orgId,
-    },
-  }).exec();
+  // const users = await UserModel.query({
+  //   orgId: {
+  //     eq: orgId,
+  //   },
+  // }).exec();
+
+  const users = await UserModel.query("orgId").eq(orgId).exec();
   console.log("users", users);
 
   users.map((user) => {
@@ -200,21 +207,25 @@ async function findByOrgIdAndRole(
   //   },
   // }).exec();
 
+  // It will return error if you don't define Schema properly
   // const users = await UserModel.query("orgId")
   //   .eq(orgId)
-  //   .and()
-  //   .where("role")
+  //   .where("role") // Using FilterExpression instead of KeyConditionExpression: https://stackoverflow.com/a/41646393 https://stackoverflow.com/a/41646393/5718964
   //   .eq(role)
   //   .exec();
-  // console.log("users", users);
 
-  const users = await UserModel.query("orgId")
-    .eq(orgId)
-    .where("role") // Using FilterExpression instead of KeyConditionExpression: https://stackoverflow.com/a/41646393
-    .eq(role)
-    .exec();
+  const users = await UserModel.query({
+    orgId: {
+      eq: orgId,
+    },
+    role: {
+      eq: role,
+    },
+  }).exec();
 
-  users.map((user) => {
+  console.log("users", users);
+
+  users.map((user: any) => {
     const u: User = {
       workspaceHash: user.workspaceHash,
       role: user.role,
@@ -229,17 +240,22 @@ async function findByOrgIdAndRole(
 
 async function main(): Promise<void> {
   await seedData();
+  // Partition Key + LSI
   // await findByStatus("032129f3-3f82-4fc7-b0b8-d95a67b4e6aa", "deposit");
   // const users = await findByRole(
   //   "1d57631d-4930-4d89-ae62-cf3a4be71139",
   //   "Awesome"
   // );
+  // Partition Key + Filter
+
+  // GSI
   // const users = await findByOrgID(2);
+  // GSI + Sort Key
   const users = await findByOrgIdAndRole(2, "Analyst");
-  console.log(users);
 }
 
 main();
 
-// KeyConditionExpression: Using partition key + sort key (better performance + sot)
+// KeyConditionExpression: Using partition key + sort key (better performance + cost)
 // FilterExpression: Not really good for performance
+// 5847e24a-5a35-4699-aff0-239525582007
